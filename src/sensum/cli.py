@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from .attention import ThresholdAttention
+from .benchmark import run_synthetic_benchmark
 from .runtime import SensumRuntime
 from .sensors import FileSensor, ScreenSensor
 
@@ -35,8 +36,16 @@ async def _watch_screen(threshold: float, pixel_threshold: float) -> None:
         await runtime.stop()
 
 
+async def _benchmark(observations: int, seed: int) -> None:
+    result = await run_synthetic_benchmark(observations=observations, seed=seed)
+    print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="sensum", description="Continuous perception without continuous LLM inference.")
+    parser = argparse.ArgumentParser(
+        prog="sensum",
+        description="Continuous perception without continuous LLM inference.",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     files = sub.add_parser("watch-files", help="Emit meaningful file-system deltas")
@@ -46,6 +55,13 @@ def build_parser() -> argparse.ArgumentParser:
     screen = sub.add_parser("watch-screen", help="Emit screen change events (optional deps)")
     screen.add_argument("--attention-threshold", type=float, default=0.55)
     screen.add_argument("--pixel-threshold", type=float, default=0.035)
+
+    benchmark = sub.add_parser(
+        "benchmark", help="Run the deterministic v0.2 two-stage filtering benchmark"
+    )
+    benchmark.add_argument("--observations", type=int, default=10_000)
+    benchmark.add_argument("--seed", type=int, default=7)
+
     return parser
 
 
@@ -55,6 +71,8 @@ def main() -> None:
         asyncio.run(_watch_files(args.path, args.attention_threshold))
     elif args.command == "watch-screen":
         asyncio.run(_watch_screen(args.attention_threshold, args.pixel_threshold))
+    elif args.command == "benchmark":
+        asyncio.run(_benchmark(args.observations, args.seed))
 
 
 if __name__ == "__main__":
