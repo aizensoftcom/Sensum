@@ -14,7 +14,7 @@ class PipelineMetrics:
     suppressed_by_attention: int
 
     @classmethod
-    def from_stats(cls, sensor: SensorStats, runtime: RuntimeStats) -> "PipelineMetrics":
+    def from_stats(cls, sensor: SensorStats, runtime: RuntimeStats) -> PipelineMetrics:
         return cls(
             raw_observations=sensor.raw_observations,
             semantic_events=sensor.semantic_events,
