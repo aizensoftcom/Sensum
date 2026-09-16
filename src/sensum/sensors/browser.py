@@ -26,12 +26,7 @@ SnapshotProvider = Callable[[], Awaitable[BrowserSnapshot]]
 
 
 class BrowserSensor:
-    """Browser/DOM change sensor independent of any browser automation library.
-
-    Pass an async snapshot provider from Playwright, Selenium, Electron, a browser extension,
-    or any custom environment. Raw DOM/text snapshots remain local; only compact semantic
-    deltas are emitted.
-    """
+    """Browser/DOM change sensor independent of any browser automation library."""
 
     def __init__(
         self,
@@ -58,7 +53,7 @@ class BrowserSensor:
         interval: float = 0.5,
         text_change_threshold: float = 0.08,
         name: str = "browser",
-    ) -> "BrowserSensor":
+    ) -> BrowserSensor:
         async def provider() -> BrowserSnapshot:
             title = await page.title()  # type: ignore[attr-defined]
             text = await page.locator("body").inner_text()  # type: ignore[attr-defined]
@@ -75,13 +70,11 @@ class BrowserSensor:
         while True:
             current = await self.provider()
             self.stats.raw_observations += 1
-
             if self._previous is not None:
                 event = self._compare(self._previous, current)
                 if event is not None:
                     self.stats.semantic_events += 1
                     yield event
-
             self._previous = current
             await asyncio.sleep(self.interval)
 
@@ -98,7 +91,6 @@ class BrowserSensor:
             changes.append(StateChange("url", before.url, after.url))
             novelty = max(novelty, 0.95)
             urgency = max(urgency, 0.15)
-
         if before.title != after.title:
             tags.append("title")
             changes.append(StateChange("title", before.title, after.title))
@@ -120,7 +112,6 @@ class BrowserSensor:
 
         if not changes:
             return None
-
         return SensoryEvent(
             kind=kind,
             source=self.name,
