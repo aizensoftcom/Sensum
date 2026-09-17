@@ -27,7 +27,9 @@ async def _run(threshold: float) -> dict[str, object]:
     }
 
     for name in TRACKS:
-        result = await run_recorded_benchmark(load_jsonl(ROOT / f"{name}.jsonl"), threshold=threshold)
+        result = await run_recorded_benchmark(
+            load_jsonl(ROOT / f"{name}.jsonl"), threshold=threshold
+        )
         payload = result.to_dict()
         tracks[name] = payload
         for key in totals:
@@ -55,10 +57,27 @@ async def _run(threshold: float) -> dict[str, object]:
     }
 
 
+def _check(payload: dict[str, object]) -> None:
+    summary = payload["summary"]
+    assert isinstance(summary, dict)
+    recall = float(summary["recall"])
+    precision = float(summary["precision"])
+    reduction = float(summary["reasoning_reduction"])
+    if recall < 0.95:
+        raise SystemExit(f"reference recall regression: {recall:.4f} < 0.95")
+    if precision < 0.90:
+        raise SystemExit(f"reference precision regression: {precision:.4f} < 0.90")
+    if reduction < 0.95:
+        raise SystemExit(f"reference reasoning reduction regression: {reduction:.4f} < 0.95")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run Sensum deterministic reference benchmarks")
     parser.add_argument("--threshold", type=float, default=0.55)
-    parser.add_argument("--generate", action="store_true", help="Regenerate privacy-safe fixtures first")
+    parser.add_argument(
+        "--generate", action="store_true", help="Regenerate privacy-safe fixtures first"
+    )
+    parser.add_argument("--check", action="store_true", help="Fail on reference-regression thresholds")
     parser.add_argument("--output", type=Path, help="Optional JSON result file")
     args = parser.parse_args()
 
@@ -66,6 +85,9 @@ def main() -> None:
         generate_fixtures()
 
     payload = asyncio.run(_run(args.threshold))
+    if args.check:
+        _check(payload)
+
     encoded = json.dumps(payload, indent=2)
     print(encoded)
     if args.output:
