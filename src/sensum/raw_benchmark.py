@@ -25,6 +25,7 @@ class RawFixtureRow:
     important: tuple[str, ...] = ()
     raw_bytes: int = 0
     origin: str = "unknown"
+    labelled: bool = False
 
 
 @dataclass(slots=True, frozen=True)
@@ -45,12 +46,20 @@ class RawBenchmarkResult:
     origins: tuple[str, ...]
 
     @property
-    def sensor_recall(self) -> float:
+    def fully_labelled(self) -> bool:
+        return self.rows > 0 and self.labelled_rows == self.rows
+
+    @property
+    def sensor_recall(self) -> float | None:
+        if not self.fully_labelled:
+            return None
         denominator = self.true_positives + self.false_negatives
         return 1.0 if denominator == 0 else self.true_positives / denominator
 
     @property
-    def sensor_precision(self) -> float:
+    def sensor_precision(self) -> float | None:
+        if not self.fully_labelled:
+            return None
         denominator = self.true_positives + self.false_positives
         return 1.0 if denominator == 0 else self.true_positives / denominator
 
@@ -61,26 +70,38 @@ class RawBenchmarkResult:
         return 1.0 - self.reasoning_events / self.raw_observations
 
     @property
-    def important_recall(self) -> float:
+    def important_recall(self) -> float | None:
+        if not self.fully_labelled:
+            return None
         if self.important_events == 0:
             return 1.0
         return self.important_reasoned / self.important_events
 
     @property
     def evidence_class(self) -> str:
-        if self.origins and set(self.origins) == {"captured"}:
+        origins = set(self.origins)
+        if origins == {"captured"}:
             return "captured"
-        if "captured" in self.origins:
+        if origins == {"generated"}:
+            return "generated"
+        if "captured" in origins and "generated" in origins:
             return "mixed"
-        return "generated"
+        return "unclassified"
 
     def to_dict(self) -> dict[str, Any]:
         result = asdict(self)
         result.update(
-            sensor_recall=round(self.sensor_recall, 6),
-            sensor_precision=round(self.sensor_precision, 6),
+            fully_labelled=self.fully_labelled,
+            sensor_recall=(
+                None if self.sensor_recall is None else round(self.sensor_recall, 6)
+            ),
+            sensor_precision=(
+                None if self.sensor_precision is None else round(self.sensor_precision, 6)
+            ),
             reasoning_reduction=round(self.reasoning_reduction, 6),
-            important_recall=round(self.important_recall, 6),
+            important_recall=(
+                None if self.important_recall is None else round(self.important_recall, 6)
+            ),
             evidence_class=self.evidence_class,
         )
         return result
@@ -107,6 +128,7 @@ def load_raw_jsonl(path: str | Path) -> list[RawFixtureRow]:
                     important=tuple(str(item) for item in (important or [])),
                     raw_bytes=int(payload.get("raw_bytes", 0)),
                     origin=str(payload.get("origin", "unknown")),
+                    labelled="expected" in payload,
                 )
             )
     return rows
@@ -202,11 +224,15 @@ async def run_raw_benchmark(
     if unknown:
         raise ValueError(f"unsupported raw benchmark track(s): {', '.join(unknown)}")
 
+    fully_labelled = bool(rows) and all(row.labelled for row in rows)
     expected = Counter(kind for row in rows for kind in row.expected)
     predicted = Counter(event.kind for event in produced)
-    true_positives = sum((expected & predicted).values())
-    false_positives = sum((predicted - expected).values())
-    false_negatives = sum((expected - predicted).values())
+    if fully_labelled:
+        true_positives = sum((expected & predicted).values())
+        false_positives = sum((predicted - expected).values())
+        false_negatives = sum((expected - predicted).values())
+    else:
+        true_positives = false_positives = false_negatives = 0
 
     important = Counter(kind for row in rows for kind in row.important)
     important_remaining = important.copy()
@@ -219,11 +245,10 @@ async def run_raw_benchmark(
             important_remaining[event.kind] -= 1
 
     elapsed_ms = (time.perf_counter() - started) * 1000
-    labelled_rows = sum(1 for row in rows if row.expected or row.important)
     origins = tuple(sorted({row.origin for row in rows}))
     return RawBenchmarkResult(
         rows=len(rows),
-        labelled_rows=labelled_rows,
+        labelled_rows=sum(1 for row in rows if row.labelled),
         raw_observations=len(rows),
         raw_bytes=sum(row.raw_bytes for row in rows),
         expected_events=sum(expected.values()),
