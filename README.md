@@ -19,6 +19,7 @@ Instead of continuously forwarding raw streams, Sensum aims to emit events such 
 
 ```text
 SPEECH_STARTED
+USER_INTERRUPTED_AGENT
 BROWSER_NAVIGATED
 PAYMENT_STATUS pending -> completed
 FILE_MODIFIED src/payment.py
@@ -41,13 +42,19 @@ Sensum is not an LLM and not an agent framework. It is a perception and attentio
 
 ## v0.2 alpha
 
-The `feat/v0.2-benchmark` branch adds the first end-to-end sensory pipeline on top of the v0.1 core:
+The `feat/v0.2-benchmark` branch now contains the first end-to-end sensory pipeline:
 
 - browser/DOM snapshot sensor with URL, title and content-change deltas;
 - Playwright page adapter without making Playwright a core dependency;
 - audio PCM sensor with a portable zero-model energy VAD;
-- `speech.started` and `speech.stopped` events;
+- `speech.started`, `speech.stopped` and `user.interrupted_agent` events;
+- shared agent-speaking state for voice stacks;
 - per-sensor `raw_observations` and `semantic_events` counters;
+- runtime metrics for reasoning reduction;
+- SSE event stream;
+- WebSocket event stream;
+- HTTP ingest endpoint;
+- live dashboard with event feed and world state;
 - deterministic synthetic benchmark for reasoning-call reduction and important-event recall.
 
 The audio and browser APIs are source-agnostic: PCM may come from a microphone, SIP, WebRTC or a file; browser snapshots may come from Playwright, Electron or another host.
@@ -62,6 +69,31 @@ Optional screen sensor:
 
 ```bash
 pip install -e '.[screen]'
+```
+
+Live gateway and dashboard:
+
+```bash
+pip install -e '.[server]'
+sensum serve
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8765
+```
+
+The live gateway exposes:
+
+```text
+GET  /            dashboard
+GET  /health      health check
+GET  /stats       runtime + sensor metrics
+GET  /world       canonical world state
+GET  /events      SSE semantic-event stream
+WS   /ws          WebSocket semantic-event stream
+POST /ingest      push external semantic events
 ```
 
 Development dependencies:
@@ -105,24 +137,58 @@ runtime = SensumRuntime().add_sensor(sensor)
 
 The sensor compares compact page snapshots locally. Repeated snapshots do not become reasoning events.
 
-## Audio sensor
+## Audio + interruption sensor
 
 ```python
 from sensum import SensumRuntime
-from sensum.sensors import AudioVADSensor
+from sensum.sensors import AgentSpeakingState, AudioVADSensor
 
-sensor = AudioVADSensor(my_async_pcm_source)
+agent = AgentSpeakingState(speaking=False)
+sensor = AudioVADSensor(my_async_pcm_source, agent_speaking=agent)
 runtime = SensumRuntime().add_sensor(sensor)
+```
+
+When the voice agent starts TTS playback:
+
+```python
+agent.speaking = True
+```
+
+If user speech is detected during that interval, Sensum emits:
+
+```text
+user.interrupted_agent
 ```
 
 The built-in `EnergyVAD` is intentionally tiny and portable. It is a baseline gate, not a claim of state-of-the-art speech detection. Silero/WebRTC/local-model adapters can replace it while keeping the same Sensum event contract.
 
-## Benchmark
+## Live dashboard
 
-Sensum now contains a deterministic synthetic regression benchmark. It exists to prevent us from replacing measurements with marketing claims.
+Run:
 
 ```bash
-python benchmarks/synthetic.py --observations 10000 --seed 7
+sensum serve
+```
+
+The dashboard shows in real time:
+
+```text
+Raw observations
+Semantic events
+Reasoning events
+Reasoning reduction
+Live event feed
+Canonical world state
+```
+
+This gives Sensum a visible debugging surface: developers can see exactly what the sensors observed, what local filtering removed, and which events crossed the attention boundary.
+
+## Benchmark
+
+Sensum contains a deterministic synthetic regression benchmark. It exists to prevent us from replacing measurements with marketing claims.
+
+```bash
+sensum benchmark --observations 10000 --seed 7
 ```
 
 It reports:
@@ -193,13 +259,15 @@ A large model should not be the first component that sees every raw signal.
 - [x] Screen change detector
 - [x] Browser/DOM snapshot sensor
 - [x] Audio VAD baseline
+- [x] Audio interruption detection
 - [x] Sensor-level reduction metrics
 - [x] Synthetic regression benchmark
-- [ ] Audio interruption detection with agent speaking-state input
+- [x] SSE gateway
+- [x] WebSocket gateway
+- [x] Live dashboard
 - [ ] Real browser/audio/screen benchmark dataset
 - [ ] Camera motion/object-event adapter
 - [ ] Local semantic perception adapters
-- [ ] WebSocket / SSE gateway
 - [ ] MCP adapter
 - [ ] Event persistence and replay
 - [ ] Learned attention policy

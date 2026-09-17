@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from typing import Any
 
 from .attention import AttentionPolicy, ThresholdAttention
 from .bus import EventBus
@@ -81,6 +82,44 @@ class SensumRuntime:
     async def events(self) -> AsyncIterator[SensoryEvent]:
         async for event in self.bus.subscribe():
             yield event
+
+    def metrics(self) -> dict[str, Any]:
+        """Return a JSON-safe snapshot for dashboards and gateways."""
+
+        sensors: dict[str, dict[str, Any]] = {}
+        raw_total = 0
+        semantic_total = 0
+
+        for sensor in self._sensors:
+            stats = getattr(sensor, "stats", None)
+            if stats is None:
+                continue
+            raw = int(getattr(stats, "raw_observations", 0))
+            semantic = int(getattr(stats, "semantic_events", 0))
+            raw_total += raw
+            semantic_total += semantic
+            sensors[sensor.name] = {
+                "raw_observations": raw,
+                "semantic_events": semantic,
+                "local_reduction_ratio": round(
+                    float(getattr(stats, "local_reduction_ratio", 0.0)), 6
+                ),
+            }
+
+        reasoning_reduction = 0.0
+        if raw_total:
+            reasoning_reduction = 1.0 - (self.stats.emitted / raw_total)
+
+        return {
+            "runtime": asdict(self.stats),
+            "sensors": sensors,
+            "totals": {
+                "raw_observations": raw_total,
+                "semantic_events": semantic_total,
+                "reasoning_events": self.stats.emitted,
+                "reasoning_reduction_ratio": round(reasoning_reduction, 6),
+            },
+        }
 
     async def _run_sensor(self, sensor: Sensor) -> None:
         try:
