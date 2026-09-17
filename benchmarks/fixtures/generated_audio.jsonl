@@ -1,0 +1,9 @@
+# Generated privacy-safe regression fixture. This is not real-world benchmark evidence.
+{"track":"audio","origin":"generated","raw_bytes":640,"expected":[],"important":[],"observation":{"amplitude":0,"samples":320,"sample_rate":16000,"agent_speaking":false}}
+{"track":"audio","origin":"generated","raw_bytes":640,"expected":[],"important":[],"observation":{"amplitude":4200,"samples":320,"sample_rate":16000,"agent_speaking":true}}
+{"track":"audio","origin":"generated","raw_bytes":640,"expected":["speech.started","user.interrupted_agent"],"important":["user.interrupted_agent"],"observation":{"amplitude":4600,"samples":320,"sample_rate":16000,"agent_speaking":true}}
+{"track":"audio","origin":"generated","raw_bytes":640,"expected":[],"important":[],"observation":{"amplitude":3800,"samples":320,"sample_rate":16000,"agent_speaking":true}}
+{"track":"audio","origin":"generated","raw_bytes":640,"expected":[],"important":[],"observation":{"amplitude":0,"samples":320,"sample_rate":16000,"agent_speaking":false}}
+{"track":"audio","origin":"generated","raw_bytes":640,"expected":[],"important":[],"observation":{"amplitude":0,"samples":320,"sample_rate":16000,"agent_speaking":false}}
+{"track":"audio","origin":"generated","raw_bytes":640,"expected":[],"important":[],"observation":{"amplitude":0,"samples":320,"sample_rate":16000,"agent_speaking":false}}
+{"track":"audio","origin":"generated","raw_bytes":640,"expected":["speech.stopped"],"important":[],"observation":{"amplitude":0,"samples":320,"sample_rate":16000,"agent_speaking":false}}
