@@ -50,10 +50,10 @@ def _event_from_payload(payload: dict[str, Any]) -> SensoryEvent:
 
 
 def create_app(runtime: SensumRuntime | None = None):
-    """Create the optional FastAPI gateway for events, state, replay and live UI."""
+    """Create the optional FastAPI gateway for events, state, trace, replay and live UI."""
 
     try:
-        from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+        from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
         from fastapi.responses import HTMLResponse, StreamingResponse
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError(
@@ -104,6 +104,26 @@ def create_app(runtime: SensumRuntime | None = None):
             {**asdict(item), "occurred_at": item.occurred_at.isoformat()}
             for item in runtime.world.history(entity=entity, path=path, limit=min(limit, 1000))
         ]
+
+    @app.get("/traces")
+    async def traces(
+        limit: int = 100,
+        significant: bool | None = None,
+        kind: str | None = None,
+    ) -> list[dict[str, Any]]:
+        return [
+            item.to_dict()
+            for item in runtime.trace.recent(
+                limit=min(limit, 1000), significant=significant, kind=kind
+            )
+        ]
+
+    @app.get("/traces/{event_id}")
+    async def trace(event_id: str) -> dict[str, Any]:
+        item = runtime.trace.get(event_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail="perception trace not found")
+        return item.to_dict()
 
     @app.get("/replay")
     async def replay(
