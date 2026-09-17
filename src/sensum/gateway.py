@@ -1,5 +1,6 @@
 import json
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
 
@@ -27,13 +28,11 @@ def _event_from_payload(payload: dict[str, Any]) -> SensoryEvent:
         )
         for change in payload.get("changes", [])
     ]
-
     identity: dict[str, Any] = {}
     if payload.get("id") is not None:
         identity["id"] = str(payload["id"])
     if payload.get("occurred_at") is not None:
         identity["occurred_at"] = _parse_occurred_at(payload["occurred_at"])
-
     return SensoryEvent(
         kind=str(payload["kind"]),
         source=str(payload.get("source", "gateway")),
@@ -51,12 +50,12 @@ def _event_from_payload(payload: dict[str, Any]) -> SensoryEvent:
 
 
 def create_app(runtime: SensumRuntime | None = None):
-    """Create the optional FastAPI gateway for SSE, WebSocket and the live dashboard."""
+    """Create the optional FastAPI gateway for events, state, replay and live UI."""
 
     try:
         from fastapi import FastAPI, WebSocket, WebSocketDisconnect
         from fastapi.responses import HTMLResponse, StreamingResponse
-    except ImportError as exc:  # pragma: no cover - depends on optional extra
+    except ImportError as exc:  # pragma: no cover
         raise RuntimeError(
             "Sensum gateway dependencies are not installed. "
             "Install with: pip install -e '.[server]'"
@@ -74,7 +73,7 @@ def create_app(runtime: SensumRuntime | None = None):
 
     app = FastAPI(
         title="Sensum Gateway",
-        version="0.2.0a1",
+        version="0.3.0a1",
         description="Live sensory-event gateway for Sensum.",
         lifespan=lifespan,
     )
@@ -95,6 +94,35 @@ def create_app(runtime: SensumRuntime | None = None):
     async def world() -> dict[str, Any]:
         return runtime.world.snapshot()
 
+    @app.get("/world/history")
+    async def world_history(
+        entity: str | None = None,
+        path: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        return [
+            {**asdict(item), "occurred_at": item.occurred_at.isoformat()}
+            for item in runtime.world.history(entity=entity, path=path, limit=min(limit, 1000))
+        ]
+
+    @app.get("/replay")
+    async def replay(
+        after_seq: int = 0,
+        limit: int = 100,
+        entity: str | None = None,
+        kind: str | None = None,
+    ) -> list[dict[str, Any]]:
+        store = runtime.store
+        if store is None or not hasattr(store, "replay"):
+            return []
+        events = store.replay(  # type: ignore[attr-defined]
+            after_seq=after_seq,
+            limit=min(limit, 1000),
+            entity=entity,
+            kind=kind,
+        )
+        return [event.to_dict() for event in events]
+
     @app.post("/ingest")
     async def ingest(payload: dict[str, Any]) -> dict[str, Any]:
         event = _event_from_payload(payload)
@@ -112,10 +140,7 @@ def create_app(runtime: SensumRuntime | None = None):
         return StreamingResponse(
             stream(),
             media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "X-Accel-Buffering": "no",
-            },
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
     @app.websocket("/ws")
