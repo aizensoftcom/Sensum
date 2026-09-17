@@ -1,0 +1,6 @@
+# Generated privacy-safe regression fixture. This is not real-world benchmark evidence.
+{"track":"browser","origin":"generated","raw_bytes":41,"expected":[],"important":[],"observation":{"url":"https://example.test/home","title":"Home","text":"Balance 120 EUR\nStatus pending"}}
+{"track":"browser","origin":"generated","raw_bytes":41,"expected":[],"important":[],"observation":{"url":"https://example.test/home","title":"Home","text":"Balance 120 EUR\nStatus pending"}}
+{"track":"browser","origin":"generated","raw_bytes":53,"expected":["browser.navigated"],"important":["browser.navigated"],"observation":{"url":"https://example.test/payments","title":"Payments","text":"Payment 42\nStatus pending\nAmount 50 EUR"}}
+{"track":"browser","origin":"generated","raw_bytes":57,"expected":["browser.changed"],"important":[],"observation":{"url":"https://example.test/payments","title":"Payments","text":"Payment 42\nStatus completed\nAmount 50 EUR\nReceipt ready"}}
+{"track":"browser","origin":"generated","raw_bytes":57,"expected":[],"important":[],"observation":{"url":"https://example.test/payments","title":"Payments","text":"Payment 42\nStatus completed\nAmount 50 EUR\nReceipt ready"}}

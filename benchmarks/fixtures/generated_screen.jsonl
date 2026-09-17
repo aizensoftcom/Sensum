@@ -1,0 +1,6 @@
+# Generated privacy-safe regression fixture. This is not real-world benchmark evidence.
+{"track":"screen","origin":"generated","raw_bytes":43200,"expected":[],"important":[],"observation":{"change_ratio":0.0}}
+{"track":"screen","origin":"generated","raw_bytes":43200,"expected":[],"important":[],"observation":{"change_ratio":0.012}}
+{"track":"screen","origin":"generated","raw_bytes":43200,"expected":["screen.changed"],"important":[],"observation":{"change_ratio":0.081}}
+{"track":"screen","origin":"generated","raw_bytes":43200,"expected":[],"important":[],"observation":{"change_ratio":0.018}}
+{"track":"screen","origin":"generated","raw_bytes":43200,"expected":["screen.changed"],"important":[],"observation":{"change_ratio":0.19}}
