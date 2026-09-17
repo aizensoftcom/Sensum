@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import collections.abc
 import typing
-from collections.abc import Callable
 
 from .sensors.base import Sensor
 
 
-SensorFactory = Callable[..., Sensor]
+SensorFactory = collections.abc.Callable[..., Sensor]
 
 
 class PluginRegistry:
