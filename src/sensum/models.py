@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 from uuid import uuid4
@@ -32,11 +32,7 @@ class StateChange:
 
 @dataclass(slots=True)
 class SensoryEvent:
-    """Canonical event passed through the Sensum runtime.
-
-    Sensors should emit small semantic deltas rather than raw continuous media whenever possible.
-    Raw payloads may be referenced in ``metadata`` but are intentionally not required by the protocol.
-    """
+    """Canonical event passed through the Sensum runtime."""
 
     kind: str
     source: str
@@ -49,7 +45,7 @@ class SensoryEvent:
     urgency: float = 0.0
     metadata: dict[str, Any] = field(default_factory=dict)
     tags: list[str] = field(default_factory=list)
-    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     id: str = field(default_factory=lambda: str(uuid4()))
 
     def __post_init__(self) -> None:
