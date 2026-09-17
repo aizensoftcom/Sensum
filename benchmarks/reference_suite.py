@@ -7,7 +7,9 @@ import asyncio
 import json
 from pathlib import Path
 
-from generate_reference_fixtures import ROOT, main as generate_fixtures
+from generate_reference_fixtures import ROOT
+from generate_reference_fixtures import main as generate_fixtures
+
 from sensum.recorded_benchmark import load_jsonl, run_recorded_benchmark
 
 TRACKS = ("browser", "audio", "screen", "vision")
@@ -77,7 +79,9 @@ def main() -> None:
     parser.add_argument(
         "--generate", action="store_true", help="Regenerate privacy-safe fixtures first"
     )
-    parser.add_argument("--check", action="store_true", help="Fail on reference-regression thresholds")
+    parser.add_argument(
+        "--check", action="store_true", help="Fail on reference-regression thresholds"
+    )
     parser.add_argument("--output", type=Path, help="Optional JSON result file")
     args = parser.parse_args()
 
