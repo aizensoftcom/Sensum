@@ -51,9 +51,11 @@ The current development line includes:
 - provider-neutral agent adapter contract;
 - sensor plugin registry;
 - synthetic regression benchmark;
-- recorded/labelled benchmark harness for real datasets.
+- event-level recorded/labelled benchmark harness;
+- raw browser/audio/screen sensor benchmark harness;
+- local capture and labelling tools for reproducible benchmark fixtures.
 
-The core remains dependency-free. FastAPI/Uvicorn and screen capture are optional extras.
+The core remains dependency-free. FastAPI/Uvicorn, screen support and capture tools are optional extras.
 
 ## Install
 
@@ -199,15 +201,40 @@ Synthetic regression benchmark:
 sensum benchmark --observations 10000 --seed 7
 ```
 
-Recorded labelled fixture:
+Event-level labelled fixture:
 
 ```bash
-python benchmarks/recorded.py path/to/fixture.jsonl
+sensum benchmark-recorded path/to/event_fixture.jsonl
 ```
 
-The recorded harness reports raw observations/bytes, semantic events, reasoning events, recall, precision and reasoning-call reduction.
+Raw sensor regression fixtures:
 
-**Synthetic results are not real-world performance claims.** Public performance numbers should use the methodology in `docs/benchmarking.md` and privacy-safe recorded fixtures.
+```bash
+sensum benchmark-raw benchmarks/fixtures/generated_browser.jsonl
+sensum benchmark-raw benchmarks/fixtures/generated_audio.jsonl
+sensum benchmark-raw benchmarks/fixtures/generated_screen.jsonl
+```
+
+Capture real observations locally, label them, then benchmark them:
+
+```bash
+pip install -e '.[capture]'
+playwright install chromium
+
+sensum capture-browser https://example.com browser.raw.jsonl --seconds 60
+sensum capture-screen screen.raw.jsonl --seconds 60
+sensum capture-audio audio.raw.jsonl --seconds 30
+sensum label-raw browser.raw.jsonl browser.labelled.jsonl
+sensum benchmark-raw browser.labelled.jsonl
+```
+
+`benchmark-raw` reports sensor precision/recall separately from reasoning reduction. Unlabelled
+captured fixtures deliberately return `null` for accuracy metrics instead of inventing ground truth.
+Generated fixtures report `evidence_class: generated`; captured fixtures report
+`evidence_class: captured`.
+
+**Generated results are not real-world performance claims.** Public performance numbers should use
+the methodology in `docs/benchmarking.md` and privacy-safe captured, fully labelled fixtures.
 
 ## Python SDK
 
