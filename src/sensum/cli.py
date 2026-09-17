@@ -41,6 +41,21 @@ async def _benchmark(observations: int, seed: int) -> None:
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
 
 
+def _serve(host: str, port: int, threshold: float) -> None:
+    try:
+        import uvicorn
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise RuntimeError(
+            "Sensum server dependencies are not installed. "
+            "Install with: pip install -e '.[server]'"
+        ) from exc
+
+    from .gateway import create_app
+
+    runtime = SensumRuntime(attention=ThresholdAttention(threshold=threshold))
+    uvicorn.run(create_app(runtime), host=host, port=port)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sensum",
@@ -62,6 +77,11 @@ def build_parser() -> argparse.ArgumentParser:
     benchmark.add_argument("--observations", type=int, default=10_000)
     benchmark.add_argument("--seed", type=int, default=7)
 
+    serve = sub.add_parser("serve", help="Run the local Sensum live gateway and dashboard")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument("--attention-threshold", type=float, default=0.55)
+
     return parser
 
 
@@ -73,6 +93,8 @@ def main() -> None:
         asyncio.run(_watch_screen(args.attention_threshold, args.pixel_threshold))
     elif args.command == "benchmark":
         asyncio.run(_benchmark(args.observations, args.seed))
+    elif args.command == "serve":
+        _serve(args.host, args.port, args.attention_threshold)
 
 
 if __name__ == "__main__":
