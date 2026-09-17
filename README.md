@@ -10,19 +10,19 @@ Sensum is an open-source sensory runtime for AI systems. It converts continuous 
 camera ─────┐
 microphone ─┤
 screen ─────┤
-browser ────┤──> sensors -> change detection -> attention -> semantic events -> AI
+browser ────┤──> local change detection -> Sensum attention -> semantic events -> AI
 files ──────┤
 APIs ───────┘
 ```
 
-Instead of sending 30 screenshots per second to a multimodal model, Sensum aims to emit events such as:
+Instead of continuously forwarding raw streams, Sensum aims to emit events such as:
 
 ```text
-PERSON_ENTERED room=kitchen
-USER_INTERRUPTED_AGENT
+SPEECH_STARTED
+BROWSER_NAVIGATED
 PAYMENT_STATUS pending -> completed
 FILE_MODIFIED src/payment.py
-OBJECT_MOVED keys:table -> keys:hand
+SCREEN_CHANGED
 ```
 
 ## Why
@@ -32,27 +32,25 @@ Most AI systems are request/response systems. Continuous agents often compensate
 Sensum introduces a small layer between the world and the model:
 
 1. **Sense** — connect screen, audio, camera, files, browser, APIs or custom sensors.
-2. **Detect change** — ignore repeated state before it reaches a model.
-3. **Attend** — score novelty, urgency and confidence locally.
-4. **Update world state** — maintain a compact canonical state from deltas.
-5. **Emit** — publish only meaningful events to GPT, Claude, Qwen, local models or agent frameworks.
+2. **Detect change locally** — ignore repeated state before it reaches a model.
+3. **Attend** — score novelty, urgency and confidence without an LLM by default.
+4. **Update world state** — maintain compact canonical state from deltas.
+5. **Emit** — publish only meaningful events to a reasoning model or agent.
 
 Sensum is not an LLM and not an agent framework. It is a perception and attention runtime.
 
-## Status
+## v0.2 alpha
 
-`v0.1` is the minimal reference core. It includes:
+The `feat/v0.2-benchmark` branch adds the first end-to-end sensory pipeline on top of the v0.1 core:
 
-- modality-agnostic **Sensum Event Protocol (SEP)**;
-- pluggable asynchronous sensors;
-- deterministic zero-LLM attention gate;
-- canonical world-state updates;
-- in-process async event bus;
-- file-system sensor;
-- optional low-cost screen-change sensor;
-- CLI, tests and JSON Schema.
+- browser/DOM snapshot sensor with URL, title and content-change deltas;
+- Playwright page adapter without making Playwright a core dependency;
+- audio PCM sensor with a portable zero-model energy VAD;
+- `speech.started` and `speech.stopped` events;
+- per-sensor `raw_observations` and `semantic_events` counters;
+- deterministic synthetic benchmark for reasoning-call reduction and important-event recall.
 
-Camera understanding, audio semantics, browser/DOM adapters and local perception models are roadmap items. The project intentionally starts with the runtime contract before adding heavy dependencies.
+The audio and browser APIs are source-agnostic: PCM may come from a microphone, SIP, WebRTC or a file; browser snapshots may come from Playwright, Electron or another host.
 
 ## Install
 
@@ -66,7 +64,16 @@ Optional screen sensor:
 pip install -e '.[screen]'
 ```
 
+Development dependencies:
+
+```bash
+pip install -e '.[dev]'
+pytest -q
+```
+
 ## 30-second demo
+
+Watch a directory and receive meaningful file deltas:
 
 ```bash
 sensum watch-files ./my-project
@@ -85,6 +92,49 @@ Example event:
   "urgency": 0.1
 }
 ```
+
+## Browser sensor
+
+```python
+from sensum import SensumRuntime
+from sensum.sensors import BrowserSensor
+
+sensor = BrowserSensor.from_playwright_page(page)
+runtime = SensumRuntime().add_sensor(sensor)
+```
+
+The sensor compares compact page snapshots locally. Repeated snapshots do not become reasoning events.
+
+## Audio sensor
+
+```python
+from sensum import SensumRuntime
+from sensum.sensors import AudioVADSensor
+
+sensor = AudioVADSensor(my_async_pcm_source)
+runtime = SensumRuntime().add_sensor(sensor)
+```
+
+The built-in `EnergyVAD` is intentionally tiny and portable. It is a baseline gate, not a claim of state-of-the-art speech detection. Silero/WebRTC/local-model adapters can replace it while keeping the same Sensum event contract.
+
+## Benchmark
+
+Sensum now contains a deterministic synthetic regression benchmark. It exists to prevent us from replacing measurements with marketing claims.
+
+```bash
+python benchmarks/synthetic.py --observations 10000 --seed 7
+```
+
+It reports:
+
+- raw observations;
+- semantic events after local detection;
+- events sent to the reasoning layer;
+- labelled important events;
+- important-event recall;
+- reasoning-call reduction.
+
+**Important:** synthetic results are regression data, not real-world performance claims. Real browser/audio/screen datasets are the next benchmark milestone.
 
 ## Python SDK
 
@@ -119,8 +169,6 @@ asyncio.run(main())
 
 ## The core idea
 
-A large model should not be the first component that sees every raw signal.
-
 ```text
 RAW WORLD
    ↓
@@ -133,7 +181,7 @@ attention gate
 reasoning model / agent
 ```
 
-The long-term goal is a common sensory layer for AI: one event protocol for vision, speech, screens, browsers, software state and physical sensors.
+A large model should not be the first component that sees every raw signal.
 
 ## Roadmap
 
@@ -143,8 +191,12 @@ The long-term goal is a common sensory layer for AI: one event protocol for visi
 - [x] Async sensor runtime
 - [x] File sensor
 - [x] Screen change detector
-- [ ] Browser/DOM sensor
-- [ ] Audio VAD + interruption sensor
+- [x] Browser/DOM snapshot sensor
+- [x] Audio VAD baseline
+- [x] Sensor-level reduction metrics
+- [x] Synthetic regression benchmark
+- [ ] Audio interruption detection with agent speaking-state input
+- [ ] Real browser/audio/screen benchmark dataset
 - [ ] Camera motion/object-event adapter
 - [ ] Local semantic perception adapters
 - [ ] WebSocket / SSE gateway
@@ -152,11 +204,12 @@ The long-term goal is a common sensory layer for AI: one event protocol for visi
 - [ ] Event persistence and replay
 - [ ] Learned attention policy
 - [ ] Cross-modal event fusion
-- [ ] Benchmarks: tokens saved vs. important-event recall
 
 ## Non-goals
 
 Sensum does **not** claim that semantic perception is solved. The project provides a common runtime, protocol and attention boundary so perception models can improve independently.
+
+Raw media should remain local by default. Sensum events should carry the minimum useful semantic delta rather than copying source streams into the reasoning layer.
 
 ## License
 
