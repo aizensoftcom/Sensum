@@ -1,65 +1,66 @@
-# Sensum Real-World Benchmark
+# Sensum Benchmarks
 
-The synthetic benchmark is a regression test. This directory defines the protocol for measuring Sensum on recorded real streams.
+Sensum keeps two benchmark classes deliberately separate.
 
-## Goal
+## 1. Reference / regression suite
 
-Measure whether an event-driven sensory runtime can reduce expensive AI reasoning calls while retaining important changes.
+The reference suite is deterministic, privacy-safe generated data used by CI. It is designed to
+catch regressions in attention policy and benchmark plumbing. **It is not real-world evidence and
+must never be presented as field performance.**
 
-## Required inputs
+Run:
 
-A session is represented as newline-delimited JSON (`.jsonl`). Each record is a raw observation from one source:
-
-```json
-{"ts":0.0,"source":"browser","payload":{"url":"https://example.test","title":"Checkout","text":"Total: 120 EUR"}}
-{"ts":0.5,"source":"browser","payload":{"url":"https://example.test","title":"Checkout","text":"Total: 70 EUR"}}
-{"ts":0.6,"source":"audio","payload":{"rms":0.004}}
-{"ts":0.7,"source":"audio","payload":{"rms":0.091}}
+```bash
+python benchmarks/reference_suite.py --generate --check
 ```
 
-A matching annotation file marks changes a reasoning model must not miss:
+The generator creates four tracks under `benchmarks/fixtures/reference/`:
 
-```json
-{"start":0.45,"end":0.55,"label":"balance_changed","important":true}
-{"start":0.65,"end":0.85,"label":"speech_started","important":true}
+- **browser** — repeated DOM-equivalent observations plus navigation, modal, price and payment-state candidates;
+- **audio** — a synthetic 16 kHz mono WAV made only from silence/sine tones, plus labelled semantic candidates;
+- **screen** — low-value visual churn plus meaningful view/error candidates;
+- **vision** — source-agnostic local-CV observations such as motion, person entry and object placement.
+
+The suite reports raw observations represented by each semantic candidate, represented raw bytes,
+semantic candidates, reasoning events, labelled important events, recall, precision and reasoning-
+event reduction. CI currently checks minimum reference recall, precision and reduction thresholds.
+
+## 2. Field / recorded benchmarks
+
+Field benchmarks are the evidence track for public performance claims. Capture a real or
+redistributable source stream, run the relevant local detector/sensor, then store the resulting
+labelled semantic candidates in the JSONL format documented in `docs/benchmarking.md`.
+
+Run one labelled fixture:
+
+```bash
+python benchmarks/recorded.py /path/to/fixture.jsonl
 ```
 
-Do not commit private recordings, credentials, customer data, or raw production conversations.
+A candidate record contains the event plus how much raw input it represents:
 
-## Metrics
+```json
+{
+  "important": true,
+  "raw_observations": 120,
+  "raw_bytes": 384000,
+  "event": {
+    "kind": "user.interrupted_agent",
+    "source": "audio",
+    "modality": "audio",
+    "summary": "User interrupted the agent",
+    "confidence": 0.98,
+    "novelty": 0.96,
+    "urgency": 0.95,
+    "tags": ["interrupt", "important"]
+  }
+}
+```
 
-Sensum reports:
+For public field results, record dataset/session provenance, Sensum version, local detector and
+sensor configuration, attention threshold, OS/Python version, hardware class, capture method and
+latency methodology. Do not commit private recordings, credentials, customer data or production
+conversations.
 
-- raw observations
-- semantic events
-- reasoning events
-- sensor reduction
-- attention reduction
-- total reasoning-call reduction
-- important-event precision / recall / F1
-- event detection latency (p50 / p95)
-- estimated payload bytes before and after filtering
-
-The primary optimization target is **maximum reasoning-call reduction subject to high important-event recall**. Reduction without recall is not a win.
-
-## Baselines
-
-Every public result should compare at least:
-
-1. `continuous`: every raw observation is sent to the reasoning layer.
-2. `sensor-only`: local change detection is enabled, attention gating is disabled.
-3. `sensum`: local change detection + semantic events + attention gating.
-
-## Public claims
-
-Synthetic results must always be labelled synthetic. Real-world numbers should include the dataset/session description, thresholds, Sensum version, hardware, and benchmark command so results are reproducible.
-
-## First benchmark pack
-
-The first public pack should contain reproducible, non-sensitive sessions for:
-
-- browser: static page, navigation, modal, checkout/status changes
-- audio: silence, speech start/stop, interruptions
-- mixed: browser change while audio is active
-
-Screen pixels and camera streams will be added after the event protocol and scoring harness are stable.
+The primary optimization target is **maximum reasoning-call reduction subject to high important-
+event recall**. Reduction without recall is not a win.
