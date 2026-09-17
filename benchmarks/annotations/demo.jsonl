@@ -1,0 +1,4 @@
+{"start":0.75,"end":0.9,"label":"speech_started","important":true}
+{"start":1.15,"end":1.3,"label":"checkout_total_changed","important":true}
+{"start":1.55,"end":1.7,"label":"speech_stopped","important":false}
+{"start":1.75,"end":1.9,"label":"payment_completed","important":true}
