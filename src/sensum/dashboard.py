@@ -56,17 +56,25 @@ DASHBOARD_HTML = """<!doctype html>
     document.getElementById('world').textContent = JSON.stringify(world, null, 2);
   }
 
+  function textNode(tag, className, value) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    node.textContent = value == null ? '' : String(value);
+    return node;
+  }
+
   const events = document.getElementById('events');
   const source = new EventSource('/events');
   source.addEventListener('sensory', message => {
     const event = JSON.parse(message.data);
     const row = document.createElement('div');
     row.className = 'event';
+    row.appendChild(textNode('div', 'kind', event.kind));
+    row.appendChild(textNode('div', '', event.summary || ''));
     const attention = event.metadata?.attention?.score;
-    row.innerHTML = `<div class=\"kind\">${event.kind}</div>` +
-      `<div>${event.summary || ''}</div>` +
-      `<div class=\"meta\">${event.modality} · ${event.source}` +
-      `${attention == null ? '' : ` · attention ${attention}`}</div>`;
+    const meta = `${event.modality || ''} · ${event.source || ''}` +
+      `${attention == null ? '' : ` · attention ${attention}`}`;
+    row.appendChild(textNode('div', 'meta', meta));
     events.prepend(row);
     while (events.children.length > 100) events.lastChild.remove();
     refresh();
