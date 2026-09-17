@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+import typing
 from collections.abc import Callable
 
 from .sensors.base import Sensor
@@ -26,7 +26,7 @@ class PluginRegistry:
             raise ValueError(f"sensor plugin already registered: {key}")
         self._sensors[key] = factory
 
-    def sensor(self, name: str, **kwargs: Any) -> Sensor:
+    def sensor(self, name: str, **kwargs: typing.Any) -> Sensor:
         key = name.strip().lower()
         try:
             factory = self._sensors[key]
