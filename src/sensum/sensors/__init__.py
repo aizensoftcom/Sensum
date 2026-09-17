@@ -1,6 +1,7 @@
 from .audio import AgentSpeakingState, AudioFrame, AudioVADSensor, EnergyVAD
 from .base import Sensor, SensorStats
 from .browser import BrowserSensor, BrowserSnapshot
+from .demo import DemoSensor
 from .files import FileSensor
 from .manual import ManualSensor
 from .screen import ScreenSensor
@@ -12,6 +13,7 @@ __all__ = [
     "AudioVADSensor",
     "BrowserSensor",
     "BrowserSnapshot",
+    "DemoSensor",
     "EnergyVAD",
     "FileSensor",
     "ManualSensor",

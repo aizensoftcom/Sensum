@@ -11,7 +11,7 @@ from .fusion import DEFAULT_RULES, TemporalFusionEngine
 from .persistence import SQLiteEventStore
 from .recorded_benchmark import load_jsonl, run_recorded_benchmark
 from .runtime import SensumRuntime
-from .sensors import FileSensor, ScreenSensor
+from .sensors import DemoSensor, FileSensor, ScreenSensor
 
 
 async def _print_events(runtime: SensumRuntime) -> None:
@@ -49,13 +49,7 @@ async def _benchmark_recorded(path: Path, threshold: float) -> None:
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
 
 
-def _serve(
-    host: str,
-    port: int,
-    threshold: float,
-    database: Path | None,
-    enable_fusion: bool,
-) -> None:
+def _run_server(runtime: SensumRuntime, host: str, port: int) -> None:
     try:
         import uvicorn
     except ImportError as exc:  # pragma: no cover - optional dependency
@@ -66,6 +60,16 @@ def _serve(
 
     from .gateway import create_app
 
+    uvicorn.run(create_app(runtime), host=host, port=port)
+
+
+def _serve(
+    host: str,
+    port: int,
+    threshold: float,
+    database: Path | None,
+    enable_fusion: bool,
+) -> None:
     store = SQLiteEventStore(database) if database is not None else None
     fusion = TemporalFusionEngine(list(DEFAULT_RULES)) if enable_fusion else None
     runtime = SensumRuntime(
@@ -73,7 +77,16 @@ def _serve(
         store=store,
         fusion=fusion,
     )
-    uvicorn.run(create_app(runtime), host=host, port=port)
+    _run_server(runtime, host, port)
+
+
+def _demo(host: str, port: int, interval: float) -> None:
+    runtime = SensumRuntime(
+        attention=ThresholdAttention(threshold=0.55),
+        fusion=TemporalFusionEngine(list(DEFAULT_RULES)),
+    )
+    runtime.add_sensor(DemoSensor(interval=interval, repeat=True))
+    _run_server(runtime, host, port)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -109,6 +122,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--db", type=Path, help="Persist semantic events to SQLite")
     serve.add_argument("--fusion", action="store_true", help="Enable default fusion rules")
 
+    demo = sub.add_parser("demo", help="Run a zero-config live perception demo")
+    demo.add_argument("--host", default="127.0.0.1")
+    demo.add_argument("--port", type=int, default=8765)
+    demo.add_argument("--interval", type=float, default=0.8)
+
     return parser
 
 
@@ -124,6 +142,8 @@ def main() -> None:
         asyncio.run(_benchmark_recorded(args.fixture, args.attention_threshold))
     elif args.command == "serve":
         _serve(args.host, args.port, args.attention_threshold, args.db, args.fusion)
+    elif args.command == "demo":
+        _demo(args.host, args.port, args.interval)
 
 
 if __name__ == "__main__":

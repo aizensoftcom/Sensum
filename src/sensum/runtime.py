@@ -10,6 +10,7 @@ from .bus import EventBus
 from .fusion import TemporalFusionEngine
 from .models import SensoryEvent
 from .sensors.base import Sensor
+from .trace import TraceBuffer
 from .world import WorldState
 
 
@@ -39,11 +40,13 @@ class SensumRuntime:
         world: WorldState | None = None,
         store: EventStore | None = None,
         fusion: TemporalFusionEngine | None = None,
+        trace: TraceBuffer | None = None,
     ) -> None:
         self.attention = attention or ThresholdAttention()
         self.world = world or WorldState()
         self.store = store
         self.fusion = fusion
+        self.trace = trace or TraceBuffer()
         self.bus = EventBus()
         self.stats = RuntimeStats()
         self._sensors: list[Sensor] = []
@@ -64,6 +67,7 @@ class SensumRuntime:
         self.stats.observed += 1
         self.world.apply(event)
 
+        persisted = self.store is not None
         if self.store is not None:
             self.store.append(event)
             self.stats.persisted += 1
@@ -85,6 +89,15 @@ class SensumRuntime:
             self.stats.emitted += 1
             emitted = True
             await self.bus.publish(event)
+
+        self.trace.record(
+            event,
+            attention_score=decision.score,
+            significant=decision.significant,
+            attention_reasons=decision.reasons,
+            persisted=persisted,
+            published=emitted,
+        )
 
         if allow_fusion and self.fusion is not None:
             for fused in self.fusion.observe(event):
@@ -148,6 +161,7 @@ class SensumRuntime:
                 "reasoning_events": self.stats.emitted,
                 "reasoning_reduction_ratio": round(reasoning_reduction, 6),
                 "persisted_events": self.store.count() if self.store is not None else 0,
+                "perception_traces": len(self.trace),
             },
         }
 
