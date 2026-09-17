@@ -39,28 +39,29 @@ async def capture_browser_fixture(
         page = await browser.new_page()
         await page.goto(url)
         deadline = time.monotonic() + seconds
-        with path.open("w", encoding="utf-8") as handle:
+        handle = await asyncio.to_thread(path.open, "w", encoding="utf-8")
+        try:
             while time.monotonic() < deadline:
                 title = await page.title()
                 text = await page.locator("body").inner_text()
                 current_url = str(page.url)
                 raw_bytes = len((current_url + title + text).encode("utf-8"))
-                _append_row(
-                    handle,
-                    {
-                        "track": "browser",
-                        "origin": "captured",
-                        "raw_bytes": raw_bytes,
-                        "observation": {
-                            "url": current_url,
-                            "title": title,
-                            "text": text,
-                        },
+                payload = {
+                    "track": "browser",
+                    "origin": "captured",
+                    "raw_bytes": raw_bytes,
+                    "observation": {
+                        "url": current_url,
+                        "title": title,
+                        "text": text,
                     },
-                )
+                }
+                await asyncio.to_thread(_append_row, handle, payload)
                 count += 1
                 await asyncio.sleep(interval)
-        await browser.close()
+        finally:
+            await asyncio.to_thread(handle.close)
+            await browser.close()
     return count
 
 
