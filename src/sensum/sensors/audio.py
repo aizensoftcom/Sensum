@@ -4,7 +4,7 @@ import asyncio
 import math
 import sys
 from array import array
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -28,6 +28,16 @@ class AudioFrame:
 
 class AudioFrameSource(Protocol):
     def __aiter__(self) -> AsyncIterator[AudioFrame]: ...
+
+
+@dataclass(slots=True)
+class AgentSpeakingState:
+    """Tiny shared state used by voice stacks to expose whether the agent is speaking."""
+
+    speaking: bool = False
+
+    def __call__(self) -> bool:
+        return self.speaking
 
 
 @dataclass(slots=True)
@@ -57,7 +67,7 @@ class EnergyVAD:
 
 
 class AudioVADSensor:
-    """Turns a continuous PCM stream into speech.started / speech.stopped events."""
+    """Turns a continuous PCM stream into speech and interruption events."""
 
     def __init__(
         self,
@@ -66,6 +76,7 @@ class AudioVADSensor:
         vad: EnergyVAD | None = None,
         speech_frames: int = 2,
         silence_frames: int = 4,
+        agent_speaking: Callable[[], bool] | None = None,
         name: str = "audio",
     ) -> None:
         if speech_frames < 1 or silence_frames < 1:
@@ -74,6 +85,7 @@ class AudioVADSensor:
         self.vad = vad or EnergyVAD()
         self.speech_frames = speech_frames
         self.silence_frames = silence_frames
+        self.agent_speaking = agent_speaking
         self.name = name
         self.stats = SensorStats()
 
@@ -101,8 +113,8 @@ class AudioVADSensor:
                     kind="speech.started",
                     source=self.name,
                     modality=Modality.AUDIO,
-                    entity="audio:speaker",
-                    summary="Speech started",
+                    entity="audio:user",
+                    summary="User speech started",
                     changes=[StateChange("speaking", False, True)],
                     confidence=min(1.0, 0.6 + score * 6),
                     novelty=0.82,
@@ -110,6 +122,23 @@ class AudioVADSensor:
                     metadata={"energy": round(score, 6), "sample_rate": frame.sample_rate},
                     tags=["speech", "started"],
                 )
+
+                if self.agent_speaking is not None and self.agent_speaking():
+                    self.stats.semantic_events += 1
+                    yield SensoryEvent(
+                        kind="user.interrupted_agent",
+                        source=self.name,
+                        modality=Modality.AUDIO,
+                        entity="conversation:active",
+                        summary="User started speaking while the agent was speaking",
+                        changes=[StateChange("agent_interrupted", False, True)],
+                        confidence=min(1.0, 0.7 + score * 5),
+                        novelty=0.96,
+                        urgency=0.95,
+                        metadata={"energy": round(score, 6), "sample_rate": frame.sample_rate},
+                        tags=["speech", "interrupt", "important"],
+                    )
+
             elif speaking and silent_run >= self.silence_frames:
                 speaking = False
                 self.stats.semantic_events += 1
@@ -117,8 +146,8 @@ class AudioVADSensor:
                     kind="speech.stopped",
                     source=self.name,
                     modality=Modality.AUDIO,
-                    entity="audio:speaker",
-                    summary="Speech stopped",
+                    entity="audio:user",
+                    summary="User speech stopped",
                     changes=[StateChange("speaking", True, False)],
                     confidence=0.95,
                     novelty=0.72,
