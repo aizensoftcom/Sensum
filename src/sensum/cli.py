@@ -7,6 +7,9 @@ from pathlib import Path
 
 from .attention import ThresholdAttention
 from .benchmark import run_synthetic_benchmark
+from .fusion import DEFAULT_RULES, TemporalFusionEngine
+from .persistence import SQLiteEventStore
+from .recorded_benchmark import load_jsonl, run_recorded_benchmark
 from .runtime import SensumRuntime
 from .sensors import FileSensor, ScreenSensor
 
@@ -41,7 +44,18 @@ async def _benchmark(observations: int, seed: int) -> None:
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
 
 
-def _serve(host: str, port: int, threshold: float) -> None:
+async def _benchmark_recorded(path: Path, threshold: float) -> None:
+    result = await run_recorded_benchmark(load_jsonl(path), threshold=threshold)
+    print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+
+
+def _serve(
+    host: str,
+    port: int,
+    threshold: float,
+    database: Path | None,
+    enable_fusion: bool,
+) -> None:
     try:
         import uvicorn
     except ImportError as exc:  # pragma: no cover - optional dependency
@@ -52,7 +66,13 @@ def _serve(host: str, port: int, threshold: float) -> None:
 
     from .gateway import create_app
 
-    runtime = SensumRuntime(attention=ThresholdAttention(threshold=threshold))
+    store = SQLiteEventStore(database) if database is not None else None
+    fusion = TemporalFusionEngine(list(DEFAULT_RULES)) if enable_fusion else None
+    runtime = SensumRuntime(
+        attention=ThresholdAttention(threshold=threshold),
+        store=store,
+        fusion=fusion,
+    )
     uvicorn.run(create_app(runtime), host=host, port=port)
 
 
@@ -71,16 +91,23 @@ def build_parser() -> argparse.ArgumentParser:
     screen.add_argument("--attention-threshold", type=float, default=0.55)
     screen.add_argument("--pixel-threshold", type=float, default=0.035)
 
-    benchmark = sub.add_parser(
-        "benchmark", help="Run the deterministic v0.2 two-stage filtering benchmark"
-    )
+    benchmark = sub.add_parser("benchmark", help="Run the synthetic regression benchmark")
     benchmark.add_argument("--observations", type=int, default=10_000)
     benchmark.add_argument("--seed", type=int, default=7)
+
+    recorded = sub.add_parser(
+        "benchmark-recorded",
+        help="Run a labelled recorded JSONL benchmark fixture",
+    )
+    recorded.add_argument("fixture", type=Path)
+    recorded.add_argument("--attention-threshold", type=float, default=0.55)
 
     serve = sub.add_parser("serve", help="Run the local Sensum live gateway and dashboard")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
     serve.add_argument("--attention-threshold", type=float, default=0.55)
+    serve.add_argument("--db", type=Path, help="Persist semantic events to SQLite")
+    serve.add_argument("--fusion", action="store_true", help="Enable default fusion rules")
 
     return parser
 
@@ -93,8 +120,10 @@ def main() -> None:
         asyncio.run(_watch_screen(args.attention_threshold, args.pixel_threshold))
     elif args.command == "benchmark":
         asyncio.run(_benchmark(args.observations, args.seed))
+    elif args.command == "benchmark-recorded":
+        asyncio.run(_benchmark_recorded(args.fixture, args.attention_threshold))
     elif args.command == "serve":
-        _serve(args.host, args.port, args.attention_threshold)
+        _serve(args.host, args.port, args.attention_threshold, args.db, args.fusion)
 
 
 if __name__ == "__main__":
