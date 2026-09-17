@@ -4,6 +4,7 @@ from .browser import BrowserSensor, BrowserSnapshot
 from .files import FileSensor
 from .manual import ManualSensor
 from .screen import ScreenSensor
+from .vision import VisionEventSensor, VisionObservation
 
 __all__ = [
     "AgentSpeakingState",
@@ -17,4 +18,6 @@ __all__ = [
     "ScreenSensor",
     "Sensor",
     "SensorStats",
+    "VisionEventSensor",
+    "VisionObservation",
 ]
