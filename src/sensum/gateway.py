@@ -1,12 +1,21 @@
-from __future__ import annotations
-
 import json
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any
 
 from .dashboard import DASHBOARD_HTML
 from .models import Modality, SensoryEvent, StateChange
 from .runtime import SensumRuntime
+
+
+def _parse_occurred_at(value: Any) -> datetime:
+    text = str(value).strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    parsed = datetime.fromisoformat(text)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def _event_from_payload(payload: dict[str, Any]) -> SensoryEvent:
@@ -18,6 +27,13 @@ def _event_from_payload(payload: dict[str, Any]) -> SensoryEvent:
         )
         for change in payload.get("changes", [])
     ]
+
+    identity: dict[str, Any] = {}
+    if payload.get("id") is not None:
+        identity["id"] = str(payload["id"])
+    if payload.get("occurred_at") is not None:
+        identity["occurred_at"] = _parse_occurred_at(payload["occurred_at"])
+
     return SensoryEvent(
         kind=str(payload["kind"]),
         source=str(payload.get("source", "gateway")),
@@ -30,6 +46,7 @@ def _event_from_payload(payload: dict[str, Any]) -> SensoryEvent:
         urgency=float(payload.get("urgency", 0.0)),
         metadata=dict(payload.get("metadata", {})),
         tags=list(payload.get("tags", [])),
+        **identity,
     )
 
 
