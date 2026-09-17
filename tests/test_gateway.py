@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from sensum.dashboard import DASHBOARD_HTML
 from sensum.gateway import create_app
 
 
@@ -15,6 +16,8 @@ def test_gateway_health_stats_and_ingest() -> None:
         response = client.post(
             "/ingest",
             json={
+                "id": "external-event-42",
+                "occurred_at": "2026-09-17T06:00:00Z",
                 "kind": "payment.completed",
                 "source": "test",
                 "modality": "api",
@@ -30,9 +33,16 @@ def test_gateway_health_stats_and_ingest() -> None:
         )
         payload = response.json()
         assert payload["emitted"] is True
+        assert payload["event"]["id"] == "external-event-42"
+        assert payload["event"]["occurred_at"] == "2026-09-17T06:00:00+00:00"
 
         world = client.get("/world").json()
         assert world["payment:1"]["status"] == "completed"
 
         after = client.get("/stats").json()
         assert after["runtime"]["emitted"] == 1
+
+
+def test_dashboard_does_not_render_event_payload_with_inner_html() -> None:
+    assert "row.innerHTML" not in DASHBOARD_HTML
+    assert "textContent" in DASHBOARD_HTML
