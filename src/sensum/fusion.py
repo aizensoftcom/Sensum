@@ -29,13 +29,22 @@ class TemporalFusionEngine:
     def __init__(self, rules: list[FusionRule] | None = None, max_events: int = 512) -> None:
         self.rules = rules or []
         self._events: deque[SensoryEvent] = deque(maxlen=max_events)
+        self._seen_event_ids: set[str] = set()
         self._emitted_signatures: set[tuple[str, tuple[str, ...]]] = set()
 
     def add_rule(self, rule: FusionRule) -> None:
         self.rules.append(rule)
 
     def observe(self, event: SensoryEvent) -> list[SensoryEvent]:
+        if event.id in self._seen_event_ids:
+            return []
+
+        if self._events.maxlen is not None and len(self._events) == self._events.maxlen:
+            oldest = self._events[0]
+            self._seen_event_ids.discard(oldest.id)
         self._events.append(event)
+        self._seen_event_ids.add(event.id)
+
         fused: list[SensoryEvent] = []
         for rule in self.rules:
             window_start = event.occurred_at - timedelta(seconds=rule.window_seconds)
@@ -47,7 +56,9 @@ class TemporalFusionEngine:
             kinds = {item.kind for item in matching}
             if not rule.required_kinds.issubset(kinds):
                 continue
-            source_ids = tuple(sorted(item.id for item in matching if item.kind in rule.required_kinds))
+            source_ids = tuple(
+                sorted({item.id for item in matching if item.kind in rule.required_kinds})
+            )
             signature = (rule.name, source_ids)
             if signature in self._emitted_signatures:
                 continue
