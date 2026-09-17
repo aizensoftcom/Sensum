@@ -1,7 +1,12 @@
 """Sensum: continuous perception without continuous LLM inference."""
 
 from .adapters import AgentAdapter, AgentEventPump, CallbackAgentAdapter
-from .attention import AttentionDecision, AttentionPolicy, BudgetedAttention, ThresholdAttention
+from .attention import (
+    AttentionDecision,
+    AttentionPolicy,
+    BudgetedAttention,
+    ThresholdAttention,
+)
 from .fusion import DEFAULT_RULES, FusionRule, TemporalFusionEngine
 from .models import Modality, SensoryEvent, StateChange
 from .persistence import SQLiteEventStore
@@ -10,13 +15,13 @@ from .runtime import RuntimeStats, SensumRuntime
 from .world import WorldHistoryEntry, WorldState
 
 __all__ = [
+    "DEFAULT_RULES",
     "AgentAdapter",
     "AgentEventPump",
     "AttentionDecision",
     "AttentionPolicy",
     "BudgetedAttention",
     "CallbackAgentAdapter",
-    "DEFAULT_RULES",
     "FusionRule",
     "Modality",
     "PluginRegistry",
