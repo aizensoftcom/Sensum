@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://sensum.dev/schema/event-v0.1.json",
+  "$id": "urn:sensum:event:v0.1",
   "title": "Sensum Event Protocol v0.1",
   "type": "object",
   "required": ["id", "occurred_at", "kind", "source", "modality", "summary", "confidence", "novelty", "urgency"],
