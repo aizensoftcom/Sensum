@@ -26,6 +26,14 @@ dependencies = []
 [project.optional-dependencies]
 screen = ["mss>=9.0", "Pillow>=10.0"]
 server = ["fastapi>=0.115", "uvicorn[standard]>=0.30"]
+capture-browser = ["playwright>=1.45"]
+capture-audio = ["sounddevice>=0.5"]
+capture = [
+  "playwright>=1.45",
+  "sounddevice>=0.5",
+  "mss>=9.0",
+  "Pillow>=10.0",
+]
 dev = [
   "pytest>=8.0",
   "pytest-asyncio>=0.23",
