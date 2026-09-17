@@ -7,6 +7,12 @@ from pathlib import Path
 
 from .attention import ThresholdAttention
 from .benchmark import run_synthetic_benchmark
+from .capture import (
+    capture_audio_fixture,
+    capture_browser_fixture,
+    capture_screen_fixture,
+    label_raw_fixture,
+)
 from .fusion import DEFAULT_RULES, TemporalFusionEngine
 from .persistence import SQLiteEventStore
 from .raw_benchmark import load_raw_jsonl, run_raw_benchmark
@@ -115,6 +121,41 @@ def build_parser() -> argparse.ArgumentParser:
     raw.add_argument("fixture", type=Path)
     raw.add_argument("--attention-threshold", type=float, default=0.55)
 
+    browser_capture = sub.add_parser(
+        "capture-browser",
+        help="Capture browser snapshots locally into an unlabelled raw fixture",
+    )
+    browser_capture.add_argument("url")
+    browser_capture.add_argument("output", type=Path)
+    browser_capture.add_argument("--seconds", type=float, default=30.0)
+    browser_capture.add_argument("--interval", type=float, default=0.5)
+    browser_capture.add_argument("--headless", action="store_true")
+
+    screen_capture = sub.add_parser(
+        "capture-screen",
+        help="Capture screen deltas locally without storing screenshots",
+    )
+    screen_capture.add_argument("output", type=Path)
+    screen_capture.add_argument("--seconds", type=float, default=30.0)
+    screen_capture.add_argument("--interval", type=float, default=0.6)
+    screen_capture.add_argument("--monitor", type=int, default=1)
+
+    audio_capture = sub.add_parser(
+        "capture-audio",
+        help="Capture microphone PCM locally into an unlabelled raw fixture",
+    )
+    audio_capture.add_argument("output", type=Path)
+    audio_capture.add_argument("--seconds", type=float, default=30.0)
+    audio_capture.add_argument("--sample-rate", type=int, default=16_000)
+    audio_capture.add_argument("--frame-ms", type=int, default=20)
+
+    label = sub.add_parser(
+        "label-raw",
+        help="Interactively label expected and important events in a captured fixture",
+    )
+    label.add_argument("source", type=Path)
+    label.add_argument("output", type=Path)
+
     serve = sub.add_parser("serve", help="Run the local Sensum live gateway and dashboard")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
@@ -137,6 +178,36 @@ def main() -> None:
         asyncio.run(_benchmark_recorded(args.fixture, args.attention_threshold))
     elif args.command == "benchmark-raw":
         asyncio.run(_benchmark_raw(args.fixture, args.attention_threshold))
+    elif args.command == "capture-browser":
+        count = asyncio.run(
+            capture_browser_fixture(
+                args.url,
+                args.output,
+                seconds=args.seconds,
+                interval=args.interval,
+                headless=args.headless,
+            )
+        )
+        print(f"captured {count} browser observations -> {args.output}")
+    elif args.command == "capture-screen":
+        count = capture_screen_fixture(
+            args.output,
+            seconds=args.seconds,
+            interval=args.interval,
+            monitor=args.monitor,
+        )
+        print(f"captured {count} screen observations -> {args.output}")
+    elif args.command == "capture-audio":
+        count = capture_audio_fixture(
+            args.output,
+            seconds=args.seconds,
+            sample_rate=args.sample_rate,
+            frame_ms=args.frame_ms,
+        )
+        print(f"captured {count} audio observations -> {args.output}")
+    elif args.command == "label-raw":
+        count = label_raw_fixture(args.source, args.output)
+        print(f"labelled {count} observations -> {args.output}")
     elif args.command == "serve":
         _serve(args.host, args.port, args.attention_threshold, args.db, args.fusion)
 
