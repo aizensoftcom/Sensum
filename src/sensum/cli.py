@@ -9,6 +9,7 @@ from .attention import ThresholdAttention
 from .benchmark import run_synthetic_benchmark
 from .fusion import DEFAULT_RULES, TemporalFusionEngine
 from .persistence import SQLiteEventStore
+from .raw_benchmark import load_raw_jsonl, run_raw_benchmark
 from .recorded_benchmark import load_jsonl, run_recorded_benchmark
 from .runtime import SensumRuntime
 from .sensors import FileSensor, ScreenSensor
@@ -46,6 +47,11 @@ async def _benchmark(observations: int, seed: int) -> None:
 
 async def _benchmark_recorded(path: Path, threshold: float) -> None:
     result = await run_recorded_benchmark(load_jsonl(path), threshold=threshold)
+    print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+
+
+async def _benchmark_raw(path: Path, threshold: float) -> None:
+    result = await run_raw_benchmark(load_raw_jsonl(path), threshold=threshold)
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
 
 
@@ -97,10 +103,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     recorded = sub.add_parser(
         "benchmark-recorded",
-        help="Run a labelled recorded JSONL benchmark fixture",
+        help="Run an event-level labelled JSONL benchmark fixture",
     )
     recorded.add_argument("fixture", type=Path)
     recorded.add_argument("--attention-threshold", type=float, default=0.55)
+
+    raw = sub.add_parser(
+        "benchmark-raw",
+        help="Run a raw browser/audio/screen JSONL benchmark fixture",
+    )
+    raw.add_argument("fixture", type=Path)
+    raw.add_argument("--attention-threshold", type=float, default=0.55)
 
     serve = sub.add_parser("serve", help="Run the local Sensum live gateway and dashboard")
     serve.add_argument("--host", default="127.0.0.1")
@@ -122,6 +135,8 @@ def main() -> None:
         asyncio.run(_benchmark(args.observations, args.seed))
     elif args.command == "benchmark-recorded":
         asyncio.run(_benchmark_recorded(args.fixture, args.attention_threshold))
+    elif args.command == "benchmark-raw":
+        asyncio.run(_benchmark_raw(args.fixture, args.attention_threshold))
     elif args.command == "serve":
         _serve(args.host, args.port, args.attention_threshold, args.db, args.fusion)
 
